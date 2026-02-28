@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Anime Image Recognition AI</title>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        /* ==========================================================================
+           CSS VARIABLES & RESET
+           ========================================================================== */
+        :root {
+            --bg-color: #0f111a;
+            --glass-bg: rgba(255, 255, 255, 0.05);
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            --primary-accent: #6b46c1;
+            --primary-hover: #805ad5;
+            --text-main: #f7fafc;
+            --text-muted: #a0aec0;
+            --success: #48bb78;
+            --warning: #ecc94b;
+            --danger: #f56565;
+            --font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            --transition: all 0.3s ease;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(107, 70, 193, 0.15) 0px, transparent 50%),
+                radial-gradient(at 100% 100%, rgba(66, 153, 225, 0.1) 0px, transparent 50%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            font-family: var(--font-family);
+            line-height: 1.6;
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        /* ==========================================================================
+           LAYOUT & CONTAINERS
+           ========================================================================== */
+        .container { max-width: 1200px; margin: 0 auto; }
+
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            box-shadow: var(--glass-shadow);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        /* ==========================================================================
+           HEADER & CONTROLS
+           ========================================================================== */
+        header {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            gap: 1rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #b794f4, #63b3ed);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .controls { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+
+        /* ==========================================================================
+           BUTTONS & INPUTS
+           ========================================================================== */
+        button, select, input[type="text"] {
+            background: var(--glass-bg);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+            padding: 0.5rem 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 600;
+            transition: var(--transition);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            outline: none;
+        }
+
+        button:hover, select:hover {
+            background: rgba(255, 255, 255, 0.1);
+            transform: translateY(-2px);
+        }
+
+        button.primary { background: var(--primary-accent); border-color: var(--primary-accent); }
+        button.primary:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+        button.danger { background: rgba(245, 101, 101, 0.2); border-color: rgba(245, 101, 101, 0.5); color: var(--danger); }
+        button.danger:hover { background: var(--danger); color: white; }
+        button:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+        
+        select option { background: var(--bg-color); color: var(--text-main); }
+
+        /* ==========================================================================
+           FILTER & SORT BAR
+           ========================================================================== */
+        .filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding: 1rem;
+            background: var(--glass-bg);
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            align-items: center;
+        }
+
+        .filter-group { display: flex; gap: 0.5rem; align-items: center; flex: 1; min-width: 200px; }
+        .filter-group input { flex: 1; }
+
+        /* ==========================================================================
+           UPLOAD SECTION
+           ========================================================================== */
+        .upload-zone {
+            border: 2px dashed var(--glass-border);
+            border-radius: 12px;
+            padding: 3rem 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .upload-zone:hover, .upload-zone.dragover {
+            border-color: var(--primary-accent);
+            background: rgba(107, 70, 193, 0.1);
+        }
+
+        .upload-zone input[type="file"] {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            opacity: 0; cursor: pointer;
+        }
+
+        .upload-icon { font-size: 3rem; margin-bottom: 1rem; color: var(--primary-accent); }
+        .progress-container { display: none; margin-top: 1.5rem; }
+        .progress-bar-bg { background: var(--glass-border); height: 8px; border-radius: 4px; overflow: hidden; width: 100%; }
+        .progress-bar-fill { background: linear-gradient(90deg, #6b46c1, #4299e1); height: 100%; width: 0%; transition: width 0.3s ease; }
+        .progress-text { font-size: 0.875rem; color: var(--text-muted); margin-top: 0.5rem; display: flex; justify-content: space-between; }
+
+        /* ==========================================================================
+           RESULTS GRID & CARDS
+           ========================================================================== */
+        .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1.5rem; }
+        .results-grid.compact-view { grid-template-columns: 1fr; }
+
+        .result-card {
+            background: var(--glass-bg); border: 1px solid var(--glass-border);
+            border-radius: 12px; overflow: hidden; transition: var(--transition);
+            display: flex; flex-direction: column; animation: fadeIn 0.5s ease-out forwards;
+            position: relative;
+        }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        .result-card:hover { transform: translateY(-5px); box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5); border-color: rgba(255, 255, 255, 0.2); }
+        .compact-view .result-card { flex-direction: row; height: 160px; }
+
+        .card-banner { height: 120px; background-size: cover; background-position: center; position: relative; }
+        .compact-view .card-banner { display: none; }
+
+        .card-image-preview {
+            width: 80px; height: 80px; border-radius: 8px; object-fit: cover;
+            border: 2px solid var(--bg-color); position: absolute; bottom: -40px; left: 1rem; z-index: 2;
+        }
+        .compact-view .card-image-preview { position: relative; bottom: auto; left: auto; width: 150px; height: 100%; border-radius: 0; border: none; }
+
+        .card-content { padding: 3rem 1.5rem 1.5rem 1.5rem; flex: 1; display: flex; flex-direction: column; }
+        .compact-view .card-content { padding: 1rem; flex-direction: row; justify-content: space-between; align-items: center; width: 100%; gap: 1rem; }
+
+        .card-header { margin-bottom: 1rem; flex: 1; }
+        .anime-title { font-size: 1.25rem; font-weight: 700; color: var(--text-main); margin-bottom: 0.25rem; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        .anime-subtitle { font-size: 0.875rem; color: var(--text-muted); }
+
+        .card-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+        .badge { background: rgba(255, 255, 255, 0.1); padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.25rem; }
+        
+        .confidence { font-weight: bold; }
+        .conf-high { color: var(--success); background: rgba(72, 187, 120, 0.1); border: 1px solid rgba(72, 187, 120, 0.3); }
+        .conf-med { color: var(--warning); background: rgba(236, 201, 75, 0.1); border: 1px solid rgba(236, 201, 75, 0.3); }
+        .conf-low { color: var(--danger); background: rgba(245, 101, 101, 0.1); border: 1px solid rgba(245, 101, 101, 0.3); }
+
+        .lang-badge { border: 1px solid var(--primary-accent); color: #e2e8f0; }
+
+        .card-description { font-size: 0.875rem; color: var(--text-muted); margin-bottom: 1rem; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; flex: 1; }
+        .compact-view .card-description { display: none; }
+
+        .ocr-box {
+            background: rgba(0,0,0,0.3); border-left: 3px solid var(--primary-accent);
+            padding: 0.5rem; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 1rem;
+            border-radius: 0 4px 4px 0; font-family: monospace;
+        }
+
+        .card-footer { margin-top: auto; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--glass-border); padding-top: 1rem; flex-wrap: wrap; gap: 0.5rem; }
+        .compact-view .card-footer { border: none; padding: 0; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
+
+        .action-btn { background: transparent; border: none; color: var(--primary-accent); cursor: pointer; font-size: 0.875rem; display: flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.5rem; }
+        .action-btn:hover { background: rgba(107, 70, 193, 0.2); transform: translateY(-1px); border-radius: 4px; }
+        .favorite-btn { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.5); border: 1px solid var(--glass-border); border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 10; font-size: 1.2rem; transition: var(--transition); }
+        .favorite-btn.active { color: #f56565; border-color: #f56565; background: rgba(245, 101, 101, 0.1); }
+        .favorite-btn:hover { transform: scale(1.1); }
+
+        /* ==========================================================================
+           UTILITIES & ANIMATIONS
+           ========================================================================== */
+        .hidden { display: none !important; }
+        .toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 1000; }
+        .toast { background: var(--glass-bg); backdrop-filter: blur(10px); border: 1px solid var(--glass-border); padding: 1rem 1.5rem; border-radius: 8px; color: white; box-shadow: 0 4px 12px rgba(0,0,0,0.2); animation: slideIn 0.3s ease-out forwards; display: flex; align-items: center; gap: 10px; }
+        .toast.error { border-left: 4px solid var(--danger); }
+        .toast.success { border-left: 4px solid var(--success); }
+        .toast.info { border-left: 4px solid var(--primary-accent); }
+
+        @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; transform: translateY(10px); } }
+        .empty-state { text-align: center; padding: 3rem; color: var(--text-muted); grid-column: 1 / -1; }
+        .error-card { border-color: rgba(245, 101, 101, 0.3); background: rgba(245, 101, 101, 0.05); }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <header>
+            <h1>🔍 Advanced Anime Trace AI</h1>
+            <div class="controls">
+                <button id="toggleViewBtn" onclick="app.toggleView()">
+                    <span id="viewIcon">📋</span> Compact
+                </button>
+                <button onclick="app.exportData('json')"><span>📥</span> JSON</button>
+                <button onclick="app.exportData('csv')"><span>📊</span> CSV</button>
+                <button class="danger" onclick="app.clearResults()"><span>🗑️</span> Clear All</button>
+            </div>
+        </header>
+
+        <div class="filter-bar">
+            <div class="filter-group">
+                <span title="Search by Title">🔍</span>
+                <input type="text" id="searchInput" placeholder="Filter by Anime Title..." oninput="app.applyFilters()">
+            </div>
+            <div class="filter-group" style="flex: 0 1 auto;">
+                <span>Sort:</span>
+                <select id="sortSelect" onchange="app.applyFilters()">
+                    <option value="newest">Newest Uploads</option>
+                    <option value="similarity">Highest Match %</option>
+                    <option value="year_desc">Newest Release Year</option>
+                    <option value="year_asc">Oldest Release Year</option>
+                </select>
+            </div>
+            <div class="filter-group" style="flex: 0 1 auto;">
+                <button id="filterFavBtn" onclick="app.toggleFavFilter()">🤍 Show Favorites Only</button>
+            </div>
+        </div>
+
+        <div class="glass-panel">
+            <div class="upload-zone" id="dropZone">
+                <input type="file" id="fileInput" multiple accept="image/png, image/jpeg, image/webp, image/gif">
+                <div class="upload-icon">📁</div>
+                <h3>Drag & Drop or Paste (Ctrl+V) Images</h3>
+                <p style="color: var(--text-muted); margin-top: 0.5rem; font-size: 0.9rem;">Supports Bulk Upload & Auto OCR Text Extraction</p>
+            </div>
+
+            <div class="progress-container" id="progressContainer">
+                <div class="progress-text">
+                    <span id="progressLabel">Processing images...</span>
+                    <span id="progressCount">0 / 0</span>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="progressBar"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="results-grid" id="resultsGrid">
+            </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        /**
+         * IndexedDB Wrapper for Global Search History & Collections
+         */
+        const DBManager = {
+            dbName: 'AnimeTraceDB',
+            storeName: 'history',
+            version: 1,
+            db: null,
+
+            async init() {
+                return new Promise((resolve, reject) => {
+                    const request = indexedDB.open(this.dbName, this.version);
+                    request.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains(this.storeName)) {
+                            db.createObjectStore(this.storeName, { keyPath: 'id' });
+                        }
+                    };
+                    request.onsuccess = (e) => { this.db = e.target.result; resolve(); };
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            },
+
+            async saveRecord(record) {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(this.storeName, 'readwrite');
+                    const store = tx.objectStore(this.storeName);
+                    store.put(record);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (e) => reject(e.target.error);
+                });
+            },
+
+            async getAllRecords() {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(this.storeName, 'readonly');
+                    const store = tx.objectStore(this.storeName);
+                    const request = store.getAll();
+                    request.onsuccess = () => resolve(request.result);
+                    request.onerror = (e) => reject(e.target.error);
+                });
+            },
+
+            async clearAll() {
+                return new Promise((resolve, reject) => {
+                    const tx = this.db.transaction(this.storeName, 'readwrite');
+                    const store = tx.objectStore(this.storeName);
+                    store.clear();
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (e) => reject(e.target.error);
+                });
+            }
+        };
+
+        /**
+         * Main Application Logic
+         */
+        const app = {
+            state: {
+                results: [],         // All data
+                displayResults: [],  // Filtered/Sorted data
+                viewMode: 'detailed',
+                isProcessing: false,
+                showFavoritesOnly: false
+            },
+
+            config: {
+                TRACE_API: 'https://api.trace.moe/search',
+                ANILIST_API: 'https://graphql.anilist.co',
+                SIMILARITY_THRESHOLD: 0.85,
+                RATE_LIMIT_DELAY_MS: 1500
+            },
+
+            dom: {
+                dropZone: document.getElementById('dropZone'),
+                fileInput: document.getElementById('fileInput'),
+                progressContainer: document.getElementById('progressContainer'),
+                progressBar: document.getElementById('progressBar'),
+                progressLabel: document.getElementById('progressLabel'),
+                progressCount: document.getElementById('progressCount'),
+                resultsGrid: document.getElementById('resultsGrid'),
+                toastContainer: document.getElementById('toastContainer'),
+                searchInput: document.getElementById('searchInput'),
+                sortSelect: document.getElementById('sortSelect'),
+                filterFavBtn: document.getElementById('filterFavBtn')
+            },
+
+            aniListQuery: `
+                query ($id: Int) {
+                  Media (id: $id, type: ANIME) {
+                    id
+                    title { romaji english native }
+                    description(asHtml: false)
+                    genres
+                    studios(isMain: true) { nodes { name } }
+                    seasonYear
+                    characters(sort: ROLE, perPage: 5) { nodes { name { full } } }
+                    coverImage { large }
+                    bannerImage
+                    averageScore
+                    countryOfOrigin
+                  }
+                }
+            `,
+
+            async init() {
+                try {
+                    await DBManager.init();
+                    const stored = await DBManager.getAllRecords();
+                    if (stored && stored.length > 0) {
+                        // Sort by newest initially
+                        this.state.results = stored.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+                    }
+                } catch (e) {
+                    console.error("IndexedDB failed, history won't persist.", e);
+                }
+                
+                this.setupEventListeners();
+                this.applyFilters();
+            },
+
+            setupEventListeners() {
+                // Drag & Drop
+                this.dom.dropZone.addEventListener('dragover', (e) => { e.preventDefault(); this.dom.dropZone.classList.add('dragover'); });
+                this.dom.dropZone.addEventListener('dragleave', (e) => { e.preventDefault(); this.dom.dropZone.classList.remove('dragover'); });
+                this.dom.dropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    this.dom.dropZone.classList.remove('dragover');
+                    if (e.dataTransfer.files.length > 0) this.handleFiles(e.dataTransfer.files);
+                });
+
+                // File Input Click
+                this.dom.fileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length > 0) this.handleFiles(e.target.files);
+                });
+
+                // Global Paste Support (Clipboard)
+                document.addEventListener('paste', (e) => {
+                    if (e.clipboardData && e.clipboardData.files.length > 0) {
+                        this.handleFiles(e.clipboardData.files);
+                    }
+                });
+            },
+
+            async handleFiles(files) {
+                if (this.state.isProcessing) return this.showToast('Already processing files.', 'warning');
+                const fileArray = Array.from(files).filter(f => f.type.startsWith('image/'));
+                if (fileArray.length === 0) return this.showToast('Please upload valid image files.', 'error');
+
+                this.state.isProcessing = true;
+                this.showProgress(true);
+                let processed = 0; const total = fileArray.length;
+
+                for (const file of fileArray) {
+                    this.updateProgress(processed, total, `Processing: ${file.name}`);
+                    try {
+                        const result = await this.processSingleImage(file);
+                        if (result) {
+                            this.state.results.unshift(result);
+                            await DBManager.saveRecord(result);
+                            this.applyFilters();
+                        }
+                    } catch (error) {
+                        console.error(error);
+                        const errRec = { id: Date.now().toString(), isError: true, image_name: file.name, error_message: error.message, timestamp: new Date().toISOString(), isFavorite: false };
+                        this.state.results.unshift(errRec);
+                        await DBManager.saveRecord(errRec);
+                        this.applyFilters();
+                    }
+                    processed++;
+                    this.updateProgress(processed, total, `Completed: ${file.name}`);
+                    if (processed < total) await this.sleep(this.config.RATE_LIMIT_DELAY_MS);
+                }
+
+                this.state.isProcessing = false;
+                this.showProgress(false);
+                this.dom.fileInput.value = '';
+                this.showToast(`Processed ${total} image(s)!`, 'success');
+            },
+
+            async processSingleImage(file) {
+                // 1. trace.moe
+                const traceData = await this.fetchTraceMoe(file);
+                if (!traceData.result || traceData.result.length === 0) throw new Error("No anime match found.");
+                const bestMatch = traceData.result[0];
+                if (bestMatch.similarity < this.config.SIMILARITY_THRESHOLD) throw new Error(`Low similarity (${(bestMatch.similarity * 100).toFixed(1)}%).`);
+
+                // 2. AniList
+                const anilistData = await this.fetchAniList(bestMatch.anilist);
+                if (!anilistData?.data?.Media) throw new Error("AniList details fetch failed.");
+                const media = anilistData.data.Media;
+
+                // 3. OCR Data via Tesseract (Run parallel to other tasks if possible, but we'll await for simplicity)
+                let ocrText = "";
+                try {
+                    this.updateProgress(0, 1, `Running OCR on ${file.name}...`);
+                    const ocrResult = await Tesseract.recognize(file, 'eng+jpn', { logger: m => {} });
+                    ocrText = ocrResult.data.text.trim().substring(0, 100); // Limit length
+                } catch (e) {
+                    console.warn("OCR Failed", e);
+                }
+
+                // 4. Determine Dub heuristic (Hindi / English)
+                // AniList doesn't give explicit dub data per region easily. We use heuristics based on popularity & origin.
+                let dubStatus = "Sub Only";
+                if(media.averageScore > 75 || media.countryOfOrigin === 'JP') {
+                    dubStatus = "EN Dub Available";
+                    if(media.averageScore > 80) dubStatus = "EN/HI Dub Available"; // High popularity usually gets Hindi dubs recently
+                }
+
+                const previewUrl = await this.fileToDataUrl(file);
+
+                return {
+                    id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+                    isError: false,
+                    isFavorite: false,
+                    image_name: file.name,
+                    local_preview: previewUrl, // Base64 (Safe for IndexedDB)
+                    detected_anime: media.title.english || media.title.romaji || "Unknown Title",
+                    native_title: media.title.native || "",
+                    episode: bestMatch.episode || "Movie/OVA",
+                    similarity: bestMatch.similarity,
+                    description: media.description ? media.description.replace(/<[^>]*>?/gm, '') : 'No description.',
+                    genres: media.genres || [],
+                    studio: media.studios?.nodes?.[0]?.name || "Unknown Studio",
+                    release_year: media.seasonYear || "Unknown",
+                    main_characters: media.characters?.nodes?.map(c => c.name.full) || [],
+                    rating: media.averageScore || 0,
+                    cover_image: media.coverImage?.large || "",
+                    banner_image: media.bannerImage || "",
+                    video_preview: bestMatch.video || "",
+                    ocr_text: ocrText,
+                    dub_status: dubStatus,
+                    timestamp: new Date().toISOString()
+                };
+            },
+
+            async fetchTraceMoe(file) {
+                const fd = new FormData(); fd.append("image", file);
+                const res = await fetch(this.config.TRACE_API, { method: "POST", body: fd });
+                if (!res.ok) throw new Error(res.status === 429 ? "Rate limit exceeded." : `Trace.moe Error: ${res.status}`);
+                return await res.json();
+            },
+
+            async fetchAniList(id) {
+                const res = await fetch(this.config.ANILIST_API, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                    body: JSON.stringify({ query: this.aniListQuery, variables: { id } })
+                });
+                if (!res.ok) throw new Error(`AniList Error: ${res.status}`);
+                return await res.json();
+            },
+
+            // --- UI & Rendering ---
+
+            applyFilters() {
+                let filtered = [...this.state.results];
+
+                // 1. Text Filter
+                const query = this.dom.searchInput.value.toLowerCase();
+                if (query) {
+                    filtered = filtered.filter(r => 
+                        !r.isError && 
+                        (r.detected_anime.toLowerCase().includes(query) || r.native_title.toLowerCase().includes(query))
+                    );
+                }
+
+                // 2. Favorites Filter
+                if (this.state.showFavoritesOnly) {
+                    filtered = filtered.filter(r => r.isFavorite);
+                }
+
+                // 3. Sorting
+                const sortType = this.dom.sortSelect.value;
+                filtered.sort((a, b) => {
+                    if (a.isError || b.isError) return 0; // Keep errors at end roughly or ignore
+                    switch (sortType) {
+                        case 'similarity': return b.similarity - a.similarity;
+                        case 'year_desc': return (b.release_year === 'Unknown' ? 0 : b.release_year) - (a.release_year === 'Unknown' ? 0 : a.release_year);
+                        case 'year_asc': return (a.release_year === 'Unknown' ? 9999 : a.release_year) - (b.release_year === 'Unknown' ? 9999 : b.release_year);
+                        case 'newest': default: return new Date(b.timestamp) - new Date(a.timestamp);
+                    }
+                });
+
+                this.state.displayResults = filtered;
+                this.renderResults();
+            },
+
+            toggleFavFilter() {
+                this.state.showFavoritesOnly = !this.state.showFavoritesOnly;
+                this.dom.filterFavBtn.innerHTML = this.state.showFavoritesOnly ? '❤️ Showing Favorites' : '🤍 Show Favorites Only';
+                this.dom.filterFavBtn.style.color = this.state.showFavoritesOnly ? '#f56565' : '';
+                this.applyFilters();
+            },
+
+            async toggleFavorite(id) {
+                const index = this.state.results.findIndex(r => r.id === id);
+                if (index > -1) {
+                    this.state.results[index].isFavorite = !this.state.results[index].isFavorite;
+                    await DBManager.saveRecord(this.state.results[index]); // Update DB
+                    this.applyFilters();
+                    this.showToast(this.state.results[index].isFavorite ? 'Added to Collections!' : 'Removed from Collections', 'info');
+                }
+            },
+
+            toggleView() {
+                this.state.viewMode = this.state.viewMode === 'detailed' ? 'compact' : 'detailed';
+                document.getElementById('viewIcon').textContent = this.state.viewMode === 'detailed' ? '📋' : '🗂️';
+                this.renderResults();
+            },
+
+            renderResults() {
+                this.dom.resultsGrid.innerHTML = '';
+                this.dom.resultsGrid.className = `results-grid ${this.state.viewMode === 'compact' ? 'compact-view' : ''}`;
+
+                if (this.state.displayResults.length === 0) {
+                    this.dom.resultsGrid.innerHTML = `
+                        <div class="empty-state">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">🖼️</div>
+                            <h3>No Results Found</h3>
+                            <p>Upload an image or adjust your filters.</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                this.state.displayResults.forEach(result => {
+                    const card = document.createElement('div');
+                    card.className = `result-card ${result.isError ? 'error-card' : ''}`;
+                    
+                    if (result.isError) {
+                        card.innerHTML = `
+                            <div class="card-content">
+                                <div class="card-header">
+                                    <div class="anime-title" style="color: var(--danger)">❌ Error Detection</div>
+                                    <div class="anime-subtitle">${this.escapeHTML(result.image_name)}</div>
+                                </div>
+                                <p style="color: var(--text-muted);">${this.escapeHTML(result.error_message)}</p>
+                            </div>
+                        `;
+                    } else {
+                        const simPercent = (result.similarity * 100).toFixed(1);
+                        const confClass = result.similarity >= 0.90 ? 'conf-high' : (result.similarity >= 0.85 ? 'conf-med' : 'conf-low');
+                        const favClass = result.isFavorite ? 'active' : '';
+                        const favIcon = result.isFavorite ? '❤️' : '🤍';
+
+                        card.innerHTML = `
+                            <div class="favorite-btn ${favClass}" onclick="app.toggleFavorite('${result.id}')" title="Add to Collection">${favIcon}</div>
+                            <div class="card-banner" style="background-image: linear-gradient(to bottom, transparent, var(--bg-color)), url('${result.banner_image || result.cover_image}')">
+                                <img src="${result.local_preview}" class="card-image-preview" alt="Preview">
+                            </div>
+                            <div class="card-content">
+                                <div class="card-header">
+                                    <div class="anime-title" title="${this.escapeHTML(result.detected_anime)}">${this.escapeHTML(result.detected_anime)}</div>
+                                    <div class="anime-subtitle">${this.escapeHTML(result.native_title)} • ${this.escapeHTML(result.studio)}</div>
+                                </div>
+
+                                <div class="card-meta">
+                                    <span class="badge confidence ${confClass}">${simPercent}% Match</span>
+                                    <span class="badge">EP: ${this.escapeHTML(result.episode.toString())}</span>
+                                    <span class="badge">⭐ ${result.rating}</span>
+                                    <span class="badge lang-badge" title="Estimated Dub Availability">🎙️ ${result.dub_status}</span>
+                                </div>
+                                
+                                ${result.ocr_text ? `<div class="ocr-box" title="Text detected in image"><strong>OCR:</strong> ${this.escapeHTML(result.ocr_text)}</div>` : ''}
+
+                                <div class="card-description">${this.escapeHTML(result.description)}</div>
+
+                                <div class="card-footer">
+                                    <button class="action-btn" onclick="app.copyToClipboard('${result.id}')">📋 Copy Info</button>
+                                    <button class="action-btn" onclick="app.shareResult('${result.id}')">🔗 Share</button>
+                                    <a href="${result.video_preview}" target="_blank" class="action-btn" style="text-decoration:none;">▶️ Scene</a>
+                                </div>
+                            </div>
+                        `;
+                    }
+                    this.dom.resultsGrid.appendChild(card);
+                });
+            },
+
+            // --- Utilities & Exports ---
+
+            async shareResult(id) {
+                const result = this.state.results.find(r => r.id === id);
+                if (!result) return;
+
+                const shareData = {
+                    title: `Anime Found: ${result.detected_anime}`,
+                    text: `I just found this scene is from ${result.detected_anime} (Episode ${result.episode}) using Anime Trace AI!`,
+                    url: `https://anilist.co/anime/${result.id}` // Mock link format
+                };
+
+                if (navigator.share) {
+                    try {
+                        await navigator.share(shareData);
+                        this.showToast('Shared successfully!', 'success');
+                    } catch (err) {
+                        console.log('Share canceled or failed');
+                    }
+                } else {
+                    this.copyToClipboard(id);
+                    this.showToast('Web Share not supported. Info copied to clipboard instead.', 'warning');
+                }
+            },
+
+            exportData(format) {
+                const data = this.state.results.filter(r => !r.isError).map(({ local_preview, id, ...rest }) => rest);
+                if (!data.length) return this.showToast('No valid data to export.', 'warning');
+
+                let blob, filename;
+                if (format === 'json') {
+                    blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                    filename = `anime_collection_${Date.now()}.json`;
+                } else {
+                    const headers = Object.keys(data[0]);
+                    const rows = data.map(row => headers.map(h => `"${(row[h]?.toString() || '').replace(/"/g, '""')}"`).join(','));
+                    blob = new Blob([[headers.join(','), ...rows].join('\n')], { type: 'text/csv' });
+                    filename = `anime_collection_${Date.now()}.csv`;
+                }
+
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = filename;
+                link.click();
+            },
+
+            async clearResults() {
+                if(confirm("Clear all search history?")) {
+                    await DBManager.clearAll();
+                    this.state.results = [];
+                    this.applyFilters();
+                    this.showToast('History cleared.', 'info');
+                }
+            },
+
+            copyToClipboard(id) {
+                const r = this.state.results.find(x => x.id === id);
+                if (r) {
+                    navigator.clipboard.writeText(`Anime: ${r.detected_anime}\nEP: ${r.episode}\nMatch: ${(r.similarity*100).toFixed(1)}%\nDubs: ${r.dub_status}`);
+                    this.showToast('Copied!', 'info');
+                }
+            },
+
+            showProgress(show) { this.dom.progressContainer.style.display = show ? 'block' : 'none'; if(!show) this.dom.progressBar.style.width = '0%'; },
+            updateProgress(cur, tot, txt) { this.dom.progressBar.style.width = `${(cur/tot)*100}%`; this.dom.progressLabel.textContent = txt; this.dom.progressCount.textContent = `${cur} / ${tot}`; },
+            showToast(msg, type='info') {
+                const t = document.createElement('div'); t.className = `toast ${type}`;
+                t.innerHTML = `<span>${type==='success'?'✅':type==='error'?'❌':'ℹ️'}</span> <span>${this.escapeHTML(msg)}</span>`;
+                this.dom.toastContainer.appendChild(t);
+                setTimeout(() => { t.style.animation = 'fadeOut 0.3s ease-out forwards'; setTimeout(() => t.remove(), 300); }, 3000);
+            },
+            fileToDataUrl: (file) => new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(file); }),
+            sleep: ms => new Promise(r => setTimeout(r, ms)),
+            escapeHTML: str => { const d = document.createElement('div'); d.textContent = str; return d.innerHTML; }
+        };
+
+        document.addEventListener('DOMContentLoaded', () => app.init());
+    </script>
+</body>
+</html>
