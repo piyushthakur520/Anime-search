@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Anime OS - Infinity Edition</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        /* --- CSS VARIABLES & THEME --- */
+        :root {
+            --bg-base: #0f111a;
+            --bg-panel: rgba(255, 255, 255, 0.05);
+            --bg-panel-hover: rgba(255, 255, 255, 0.08);
+            --border-glass: rgba(255, 255, 255, 0.1);
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --primary: #8b5cf6;
+            --primary-hover: #7c3aed;
+            --accent: #0ea5e9;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            --transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        /* --- RESET & TYPOGRAPHY --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+        body { background: var(--bg-base); color: var(--text-main); min-height: 100vh; overflow-x: hidden; display: flex; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-base); }
+        ::-webkit-scrollbar-thumb { background: var(--border-glass); border-radius: 4px; }
+
+        /* --- LAYOUT: SIDEBAR & MAIN --- */
+        .sidebar { width: 80px; background: rgba(0,0,0,0.4); backdrop-filter: blur(20px); border-right: 1px solid var(--border-glass); display: flex; flex-direction: column; align-items: center; padding: 2rem 0; gap: 1.5rem; position: fixed; height: 100vh; z-index: 100; }
+        .nav-item { width: 48px; height: 48px; border-radius: 12px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-muted); transition: var(--transition); font-size: 1.5rem; border: 1px solid transparent; }
+        .nav-item:hover { background: var(--bg-panel); color: var(--text-main); transform: translateY(-2px); }
+        .nav-item.active { background: var(--primary); color: white; border-color: var(--primary-hover); box-shadow: 0 0 15px rgba(139, 92, 246, 0.4); }
+
+        .main-content { margin-left: 80px; flex: 1; padding: 2rem 3rem; height: 100vh; overflow-y: auto; }
+        .header-flex { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 2rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border-glass); }
+        h1 { font-size: 2.2rem; background: linear-gradient(90deg, #c4b5fd, #8b5cf6, #0ea5e9); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        
+        /* --- UTILITIES --- */
+        .glass-panel { background: var(--bg-panel); border: 1px solid var(--border-glass); border-radius: 16px; padding: 1.5rem; backdrop-filter: blur(12px); box-shadow: var(--shadow); }
+        .btn { padding: 0.6rem 1.2rem; border-radius: 8px; font-weight: 600; cursor: pointer; transition: var(--transition); border: 1px solid var(--border-glass); background: rgba(255,255,255,0.05); color: var(--text-main); display: inline-flex; align-items: center; gap: 0.5rem; }
+        .btn:hover { background: rgba(255,255,255,0.1); transform: translateY(-2px); }
+        .btn-primary { background: var(--primary); border-color: var(--primary-hover); }
+        .btn-primary:hover { background: var(--primary-hover); }
+        .btn-danger { color: var(--danger); border-color: rgba(239, 68, 68, 0.3); }
+        .btn-danger:hover { background: var(--danger); color: white; }
+
+        /* --- TABS & UPLOAD ZONE --- */
+        .tab-section { display: none; animation: fadeIn 0.4s ease forwards; }
+        .tab-section.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .upload-zone { border: 2px dashed var(--border-glass); border-radius: 16px; padding: 4rem 2rem; text-align: center; cursor: pointer; transition: var(--transition); background: rgba(0,0,0,0.2); position: relative; }
+        .upload-zone:hover, .upload-zone.dragover { border-color: var(--primary); background: rgba(139, 92, 246, 0.1); }
+        
+        /* --- PROCESSING OVERLAY --- */
+        .processing-bar { background: var(--bg-panel); border-radius: 8px; padding: 1rem; margin-top: 1.5rem; border: 1px solid var(--primary); display: none; }
+        .spinner { width: 20px; height: 20px; border: 3px solid rgba(255,255,255,0.3); border-radius: 50%; border-top-color: var(--primary); animation: spin 1s ease-in-out infinite; display: inline-block; vertical-align: middle; margin-right: 10px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* --- RESULT CARDS (THE CORE) --- */
+        .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 1.5rem; }
+        .anime-card { background: var(--bg-panel); border: 1px solid var(--border-glass); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; transition: var(--transition); }
+        .anime-card:hover { border-color: rgba(139, 92, 246, 0.5); box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+        
+        .card-banner-wrapper { position: relative; height: 160px; overflow: hidden; }
+        .card-banner { width: 100%; height: 100%; object-fit: cover; transition: filter 0.3s; }
+        .card-banner.spoiler-blur { filter: blur(15px); }
+        .card-banner-wrapper:hover .spoiler-blur { filter: blur(0); } /* Reveal on hover */
+        
+        .spoiler-warning { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 4px; font-size: 0.8rem; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
+        .card-banner.spoiler-blur + .spoiler-warning { opacity: 1; }
+        .card-banner-wrapper:hover .spoiler-warning { opacity: 0; }
+
+        .card-content { padding: 1.5rem; flex: 1; display: flex; flex-direction: column; gap: 1rem; }
+        .card-title { font-size: 1.25rem; font-weight: bold; line-height: 1.3; }
+        
+        .badges { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+        .badge { padding: 0.25rem 0.6rem; border-radius: 6px; font-size: 0.75rem; font-weight: bold; background: rgba(255,255,255,0.1); border: 1px solid var(--border-glass); }
+        .badge.match-high { color: var(--success); border-color: rgba(16, 185, 129, 0.4); background: rgba(16, 185, 129, 0.1); }
+        .badge.match-low { color: var(--warning); border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.1); }
+        .badge.accent { color: var(--accent); border-color: rgba(14, 165, 233, 0.4); }
+
+        /* Progress Bar */
+        .progress-container { width: 100%; background: rgba(0,0,0,0.4); border-radius: 4px; height: 6px; overflow: hidden; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent)); transition: width 1s ease; }
+
+        /* Aesthetic Palette */
+        .palette-bar { display: flex; height: 12px; border-radius: 4px; overflow: hidden; }
+        .color-swatch { flex: 1; cursor: crosshair; transition: flex 0.2s; }
+        .color-swatch:hover { flex: 2; }
+
+        /* Characters */
+        .char-row { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.5rem; }
+        .char-thumb { width: 40px; height: 40px; border-radius: 50%; object-fit: cover; border: 2px solid var(--border-glass); background: #000; }
+
+        /* Relations/Tree */
+        .relations-box { background: rgba(0,0,0,0.2); padding: 0.75rem; border-radius: 8px; font-size: 0.8rem; color: var(--text-muted); }
+
+        .card-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: auto; }
+        .vault-actions { display: flex; gap: 0.5rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border-glass); }
+        .vault-select { flex: 1; background: var(--bg-base); color: var(--text-main); border: 1px solid var(--border-glass); padding: 0.5rem; border-radius: 6px; outline: none; }
+
+        /* --- MODALS --- */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); backdrop-filter: blur(5px); display: none; justify-content: center; align-items: center; z-index: 2000; }
+        .modal-content { background: var(--bg-base); border: 1px solid var(--border-glass); border-radius: 16px; padding: 2rem; width: 90%; max-width: 800px; max-height: 90vh; display: flex; flex-direction: column; }
+        .modal-content.video-modal { background: transparent; border: none; padding: 0; max-width: 1000px; }
+        video { width: 100%; border-radius: 12px; background: #000; outline: none; box-shadow: var(--shadow); }
+
+        /* --- TOASTS --- */
+        .toast-container { position: fixed; bottom: 20px; right: 20px; display: flex; flex-direction: column; gap: 10px; z-index: 3000; }
+        .toast { background: var(--bg-panel); backdrop-filter: blur(16px); border: 1px solid var(--primary); padding: 1rem 1.5rem; border-radius: 8px; font-weight: 600; box-shadow: var(--shadow); animation: slideIn 0.3s ease forwards; }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+
+        /* --- DASHBOARD CHARTS --- */
+        .dash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem; }
+        .chart-box { height: 300px; position: relative; }
+    </style>
+</head>
+<body>
+
+    <nav class="sidebar">
+        <div class="nav-item active" onclick="app.switchTab('search')" title="Live Search">🔍</div>
+        <div class="nav-item" onclick="app.switchTab('vault')" title="Permanent Vault">💾</div>
+        <div class="nav-item" onclick="app.switchTab('calendar')" title="Simulcast Calendar">📅</div>
+        <div class="nav-item" onclick="app.switchTab('stats')" title="Library Analytics">📊</div>
+    </nav>
+
+    <main class="main-content">
+        
+        <div class="header-flex">
+            <div>
+                <h1>Enterprise Anime OS</h1>
+                <p style="color:var(--text-muted); margin-top: 0.25rem;">Infinity Edition • Persistent Database • Analytics</p>
+            </div>
+            <div style="display: flex; gap: 1rem;">
+                <button class="btn" onclick="app.exportVault()">📥 Export JSON</button>
+                <button class="btn btn-danger" onclick="app.wipeVault()">🗑️ Wipe OS</button>
+            </div>
+        </div>
+
+        <section id="tab-search" class="tab-section active">
+            <div class="upload-zone glass-panel" id="dropZone">
+                <input type="file" id="fileInput" hidden accept="image/*">
+                <div style="font-size: 3.5rem; margin-bottom: 1rem;">📸</div>
+                <h2>Drag & Drop an Anime Screenshot Here</h2>
+                <p style="color: var(--text-muted); margin-top: 0.5rem;">Or click to browse. Automatically fixes UI borders and extracts metadata.</p>
+            </div>
+
+            <div class="processing-bar" id="processBar">
+                <div class="spinner"></div> <span id="processText">Initializing AI Engines...</span>
+            </div>
+
+            <div style="margin-top: 2rem;">
+                <h3 style="margin-bottom: 1rem; display: none;" id="recentSearchHeader">Current Session Results</h3>
+                <div class="results-grid" id="searchGrid"></div>
+            </div>
+        </section>
+
+        <section id="tab-vault" class="tab-section">
+            <div class="header-flex" style="border:none; margin-bottom: 1rem; padding:0;">
+                <h2>💾 Your Permanent Collection</h2>
+            </div>
+            <div class="results-grid" id="vaultGrid"></div>
+        </section>
+
+        <section id="tab-calendar" class="tab-section">
+            <h2 style="margin-bottom: 1.5rem;">📅 Airing Today (Japan)</h2>
+            <div class="results-grid" id="calendarGrid"></div>
+        </section>
+
+        <section id="tab-stats" class="tab-section">
+            <div class="dash-grid">
+                <div class="glass-panel">
+                    <h3 style="margin-bottom: 1rem;">Genre Distribution</h3>
+                    <div class="chart-box"><canvas id="genreChart"></canvas></div>
+                </div>
+                <div class="glass-panel">
+                    <h3 style="margin-bottom: 1rem;">Watch Status</h3>
+                    <div class="chart-box"><canvas id="statusChart"></canvas></div>
+                </div>
+                <div class="glass-panel" style="grid-column: 1 / -1;">
+                    <h3 style="margin-bottom: 1rem;">Library Metrics</h3>
+                    <div id="metricsText" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center; font-size: 1.2rem;">
+                        </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div class="modal-overlay" id="cropModal">
+        <div class="modal-content">
+            <h2 style="margin-bottom: 1rem;">✂️ Clean Image UI</h2>
+            <p style="color: var(--text-muted); margin-bottom: 1rem;">Crop out any black bars, phone UI, or watermarks to improve AI accuracy.</p>
+            <div style="height: 50vh; background: #000; border-radius: 8px; overflow: hidden;">
+                <img id="cropImage" style="max-width: 100%; display: block;">
+            </div>
+            <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
+                <button class="btn" onclick="app.closeModals()">Cancel</button>
+                <button class="btn btn-primary" onclick="app.executeSearch()">✅ Analyze Scene</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="videoModal">
+        <div class="modal-content video-modal">
+            <button class="btn btn-danger" style="position: absolute; top: -50px; right: 0; padding: 0.5rem 1rem;" onclick="app.closeModals()">Close Player ✖</button>
+            <video id="scenePlayer" controls autoplay name="media"></video>
+        </div>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script>
+        const app = {
+            // --- STATE MANAGEMENT ---
+            state: {
+                vault: JSON.parse(localStorage.getItem('anime_os_vault_v2') || '[]'),
+                sessionResults: [],
+                cropper: null,
+                charts: { genre: null, status: null }
+            },
+
+            // --- 1. INITIALIZATION ---
+            init() {
+                this.bindUI();
+                this.renderVault();
+                this.loadCalendar(); // Feature 6: Simulcast Calendar
+            },
+
+            bindUI() {
+                const dz = document.getElementById('dropZone');
+                const fi = document.getElementById('fileInput');
+
+                dz.onclick = () => fi.click();
+                dz.ondragover = e => { e.preventDefault(); dz.classList.add('dragover'); };
+                dz.ondragleave = e => { e.preventDefault(); dz.classList.remove('dragover'); };
+                dz.ondrop = e => { e.preventDefault(); dz.classList.remove('dragover'); this.handleFile(e.dataTransfer.files[0]); };
+                fi.onchange = e => this.handleFile(e.target.files[0]);
+            },
+
+            switchTab(tabId) {
+                document.querySelectorAll('.tab-section').forEach(el => el.classList.remove('active'));
+                document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+                
+                document.getElementById(`tab-${tabId}`).classList.add('active');
+                event.currentTarget.classList.add('active');
+
+                if(tabId === 'stats') this.renderCharts(); // Render canvas only when visible
+            },
+
+            // --- 2. IMAGE PIPELINE (CROP & PALETTE) ---
+            handleFile(file) {
+                if(!file || !file.type.startsWith('image/')) return this.toast('Please upload an image file.', 'error');
+                
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const img = document.getElementById('cropImage');
+                    img.src = e.target.result;
+                    document.getElementById('cropModal').style.display = 'flex';
+                    
+                    if(this.state.cropper) this.state.cropper.destroy();
+                    // Slight timeout to ensure modal is rendered
+                    setTimeout(() => {
+                        this.state.cropper = new Cropper(img, { viewMode: 1, autoCropArea: 0.95, background: false });
+                    }, 50);
+                };
+                reader.readAsDataURL(file);
+            },
+
+            closeModals() {
+                document.getElementById('cropModal').style.display = 'none';
+                document.getElementById('videoModal').style.display = 'none';
+                document.getElementById('scenePlayer').pause();
+                document.getElementById('scenePlayer').src = '';
+                if(this.state.cropper) this.state.cropper.destroy();
+            },
+
+            // Feature 8: Aesthetic Palette Generator
+            async extractPalette(canvas) {
+                return new Promise(resolve => {
+                    const ctx = canvas.getContext('2d');
+                    // Get image data, step through pixels to find 5 dominant-ish colors
+                    const data = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+                    const colors = [];
+                    const step = Math.floor((data.length / 4) / 5); // Take 5 distinct samples
+                    
+                    for(let i=0; i<5; i++) {
+                        const idx = (i * step) * 4;
+                        colors.push(`rgb(${data[idx]}, ${data[idx+1]}, ${data[idx+2]})`);
+                    }
+                    resolve(colors);
+                });
+            },
+
+            // --- 3. THE CORE AI ENGINE (API INTEGRATIONS) ---
+            async executeSearch() {
+                const canvas = this.state.cropper.getCroppedCanvas();
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                
+                // Get blob for API upload
+                canvas.toBlob(async (blob) => {
+                    this.closeModals();
+                    this.showProcessing("Uploading to Trace.moe Vision Engine...");
+
+                    try {
+                        // API 1: Trace.moe
+                        const formData = new FormData();
+                        formData.append("image", blob);
+                        const traceRes = await fetch("https://api.trace.moe/search?anilistInfo", { method: "POST", body: formData });
+                        const traceData = await traceRes.json();
+                        
+                        if(!traceData.result || traceData.result.length === 0) throw new Error("No matching scene found in database.");
+                        const match = traceData.result[0];
+
+                        this.showProcessing("Fetching Deep Metadata from AniList...");
+
+                        // API 2: AniList GraphQL (Features 2, 5, 11, 15)
+                        const aniQuery = `
+                        query ($id: Int) {
+                            Media (id: $id) {
+                                id title { english romaji }
+                                status episodes season seasonYear bannerImage coverImage { extraLarge }
+                                genres
+                                characters (role: MAIN, sort: [ROLE]) { nodes { name { full } image { medium } } }
+                                relations { nodes { title { english } type } }
+                                recommendations (perPage: 2) { nodes { mediaRecommendation { title { english romaji } } } }
+                            }
+                        }`;
+                        
+                        const aniRes = await fetch('https://graphql.anilist.co', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ query: aniQuery, variables: { id: match.anilist.id } })
+                        });
+                        const aniData = await aniRes.json();
+                        const info = aniData.data.Media;
+
+                        // API 3: Tesseract OCR (Feature 3) - Run alongside palette extraction
+                        this.showProcessing("Extracting Palette & Subtitles...");
+                        let ocrText = "";
+                        try {
+                            const tRes = await Tesseract.recognize(blob, 'jpn', { logger: m => {} });
+                            ocrText = tRes.data.text.replace(/\s+/g, '').trim();
+                        } catch(e) { console.warn("OCR Failed", e); }
+
+                        const palette = await this.extractPalette(canvas);
+
+                        // Assemble Final Object
+                        const finalResult = {
+                            id: Date.now().toString(),
+                            aniId: info.id,
+                            title: info.title.english || info.title.romaji,
+                            image: dataUrl,
+                            banner: info.bannerImage || info.coverImage.extraLarge || dataUrl,
+                            episode: match.episode || 1,
+                            totalEpisodes: info.episodes,
+                            similarity: (match.similarity * 100).toFixed(1),
+                            timestamp: this.formatTime(match.from),
+                            video: match.video,
+                            genres: info.genres || [],
+                            palette: palette,
+                            characters: (info.characters?.nodes || []).slice(0, 5),
+                            relations: (info.relations?.nodes || []).slice(0, 2),
+                            recs: (info.recommendations?.nodes || []).slice(0, 2).map(n => n.mediaRecommendation?.title?.english || n.mediaRecommendation?.title?.romaji),
+                            ocr: ocrText,
+                            status: 'Plan to Watch', // Feature 13 default
+                            savedAt: new Date().toISOString()
+                        };
+
+                        this.state.sessionResults.unshift(finalResult);
+                        this.hideProcessing();
+                        document.getElementById('recentSearchHeader').style.display = 'block';
+                        this.renderSearchGrid();
+                        this.toast(`Identified: ${finalResult.title}`, 'success');
+
+                    } catch (error) {
+                        this.hideProcessing();
+                        this.toast(error.message, 'error');
+                    }
+                }, 'image/jpeg');
+            },
+
+            // --- 4. RENDERERS (DOM UPDATES) ---
+            renderCardHTML(item, isVault = false) {
+                // Feature 9 & 11: Spoiler Protection & Total Progress
+                const epTotal = item.totalEpisodes || '?';
+                const epNum = item.episode || 1;
+                let progressPercent = item.totalEpisodes ? (epNum / item.totalEpisodes) * 100 : 0;
+                if(progressPercent > 100) progressPercent = 100;
+                
+                // Blur if episode is in the final 10% of the show
+                const isSpoiler = item.totalEpisodes && (epNum / item.totalEpisodes) > 0.9;
+                const matchClass = item.similarity >= 85 ? 'match-high' : 'match-low';
+
+                // Stream Link (Feature 1)
+                const streamLink = `https://www.crunchyroll.com/search?q=${encodeURIComponent(item.title)}`;
+
+                return `
+                <div class="anime-card">
+                    <div class="card-banner-wrapper">
+                        <img src="${item.banner}" class="card-banner ${isSpoiler ? 'spoiler-blur' : ''}" loading="lazy">
+                        ${isSpoiler ? '<div class="spoiler-warning">⚠️ Potential Spoiler (Hover to reveal)</div>' : ''}
+                    </div>
+                    
+                    <div class="card-content">
+                        <div class="badges">
+                            <span class="badge ${matchClass}">${item.similarity}% Match</span>
+                            <span class="badge accent">EP ${epNum} / ${epTotal}</span>
+                            <span class="badge">⏱ ${item.timestamp}</span>
+                        </div>
+                        
+                        <div class="card-title">${item.title}</div>
+                        
+                        <div class="progress-container" title="${progressPercent.toFixed(0)}% into series">
+                            <div class="progress-fill" style="width: ${progressPercent}%"></div>
+                        </div>
+
+                        <div class="palette-bar">
+                            ${item.palette.map(c => `<div class="color-swatch" style="background:${c}" title="${c}"></div>`).join('')}
+                        </div>
+
+                        ${item.ocr ? `<div style="font-size:0.8rem; background: rgba(0,0,0,0.3); padding:0.5rem; border-left:2px solid var(--accent);">🇯🇵 ${item.ocr}</div>` : ''}
+
+                        <div class="char-row">
+                            ${item.characters.map(c => `<img src="${c.image.medium}" class="char-thumb" title="${c.name.full}">`).join('')}
+                        </div>
+
+                        ${item.relations.length ? `
+                            <div class="relations-box">
+                                <strong>Franchise:</strong><br>
+                                ${item.relations.map(r => `• ${r.title.english || 'Unknown'} (${r.type})`).join('<br>')}
+                            </div>
+                        ` : ''}
+
+                        <div class="card-actions">
+                            <button class="btn" style="justify-content:center; padding:0.4rem;" onclick="app.playVideo('${item.video}')">▶ Play Scene</button>
+                            <button class="btn" style="justify-content:center; padding:0.4rem;" onclick="window.open('${streamLink}', '_blank')">📺 Stream</button>
+                        </div>
+
+                        ${isVault ? `
+                            <div class="vault-actions">
+                                <select class="vault-select" onchange="app.updateStatus('${item.id}', this.value)">
+                                    <option value="Plan to Watch" ${item.status === 'Plan to Watch' ? 'selected' : ''}>📌 Plan to Watch</option>
+                                    <option value="Watching" ${item.status === 'Watching' ? 'selected' : ''}>👁️ Watching</option>
+                                    <option value="Completed" ${item.status === 'Completed' ? 'selected' : ''}>✅ Completed</option>
+                                </select>
+                                <button class="btn btn-danger" style="padding:0.4rem;" onclick="app.deleteFromVault('${item.id}')">✖</button>
+                            </div>
+                        ` : `
+                            <button class="btn btn-primary" style="margin-top:0.5rem; justify-content:center;" onclick="app.saveToVault('${item.id}')">💾 Save to Vault</button>
+                            <button class="btn" style="margin-top:0.5rem; justify-content:center; font-size:0.8rem;" onclick="app.downloadWallpaper('${item.id}')">📥 Download Raw Frame</button>
+                        `}
+                    </div>
+                </div>`;
+            },
+
+            renderSearchGrid() {
+                document.getElementById('searchGrid').innerHTML = this.state.sessionResults.map(i => this.renderCardHTML(i, false)).join('');
+            },
+
+            renderVault() {
+                const grid = document.getElementById('vaultGrid');
+                if(this.state.vault.length === 0) {
+                    grid.innerHTML = `<div style="grid-column: 1/-1; text-align:center; padding:3rem; color:var(--text-muted);">Your vault is empty. Search and save items here.</div>`;
+                    return;
+                }
+                grid.innerHTML = this.state.vault.map(i => this.renderCardHTML(i, true)).join('');
+            },
+
+            // --- 5. DATA MANAGEMENT (VAULT & EXPORT) ---
+            saveToVault(id) {
+                const item = this.state.sessionResults.find(i => i.id === id);
+                if(this.state.vault.find(i => i.aniId === item.aniId && i.episode === item.episode)) {
+                    return this.toast('This exact scene is already in your vault!', 'warning');
+                }
+                this.state.vault.unshift(item);
+                localStorage.setItem('anime_os_vault_v2', JSON.stringify(this.state.vault));
+                this.renderVault();
+                this.toast('Saved to Permanent Vault', 'success');
+            },
+
+            deleteFromVault(id) {
+                if(!confirm("Remove this entry from your vault?")) return;
+                this.state.vault = this.state.vault.filter(i => i.id !== id);
+                localStorage.setItem('anime_os_vault_v2', JSON.stringify(this.state.vault));
+                this.renderVault();
+                if(document.getElementById('tab-stats').classList.contains('active')) this.renderCharts();
+            },
+
+            updateStatus(id, newStatus) {
+                const idx = this.state.vault.findIndex(i => i.id === id);
+                if(idx > -1) {
+                    this.state.vault[idx].status = newStatus;
+                    localStorage.setItem('anime_os_vault_v2', JSON.stringify(this.state.vault));
+                    this.toast(`Status updated to ${newStatus}`, 'success');
+                    if(document.getElementById('tab-stats').classList.contains('active')) this.renderCharts();
+                }
+            },
+
+            wipeVault() {
+                if(confirm("DANGER: This will delete your entire permanent vault. Are you sure?")) {
+                    localStorage.removeItem('anime_os_vault_v2');
+                    this.state.vault = [];
+                    this.renderVault();
+                    this.toast('OS wiped clean.', 'success');
+                }
+            },
+
+            exportVault() { // Feature 4
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(this.state.vault, null, 2));
+                const a = document.createElement('a');
+                a.href = dataStr;
+                a.download = `AnimeOS_Backup_${new Date().toISOString().slice(0,10)}.json`;
+                a.click();
+            },
+
+            // Feature 10: Download Wallpaper
+            downloadWallpaper(id) {
+                const item = this.state.sessionResults.find(i => i.id === id);
+                if(!item) return;
+                const a = document.createElement('a');
+                a.href = item.image; // Raw extracted frame
+                a.download = `${item.title.replace(/[^a-z0-9]/gi, '_')}_EP${item.episode}.jpg`;
+                a.click();
+            },
+
+            // --- 6. EXTERNAL APIS (CALENDAR) ---
+            async loadCalendar() {
+                try {
+                    const res = await fetch('https://api.jikan.moe/v4/schedules?filter=today');
+                    const data = await res.json();
+                    
+                    document.getElementById('calendarGrid').innerHTML = data.data.slice(0, 12).map(a => `
+                        <div class="glass-panel" style="padding: 1rem; display:flex; gap: 1rem; align-items:center;">
+                            <img src="${a.images.jpg.image_url}" style="width:60px; height:80px; object-fit:cover; border-radius:8px;">
+                            <div>
+                                <h4 style="margin-bottom:0.25rem;">${a.title}</h4>
+                                <span class="badge accent">${a.broadcast?.string || 'TBA'}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                } catch(e) {
+                    document.getElementById('calendarGrid').innerHTML = "Failed to load schedule from Jikan API.";
+                }
+            },
+
+            // --- 7. ANALYTICS (CHART.JS) ---
+            renderCharts() { // Feature 12
+                if(!this.state.vault.length) return;
+
+                const genres = {};
+                const statuses = { 'Plan to Watch': 0, 'Watching': 0, 'Completed': 0 };
+                let totalEps = 0;
+
+                this.state.vault.forEach(item => {
+                    item.genres.forEach(g => genres[g] = (genres[g] || 0) + 1);
+                    if(statuses[item.status] !== undefined) statuses[item.status]++;
+                    totalEps += Number(item.episode) || 1; // Count episodes watched to reach this point
+                });
+
+                // Top 6 Genres
+                const sortedGenres = Object.entries(genres).sort((a,b)=>b[1]-a[1]).slice(0,6);
+
+                // Destroy old charts
+                if(this.state.charts.genre) this.state.charts.genre.destroy();
+                if(this.state.charts.status) this.state.charts.status.destroy();
+
+                Chart.defaults.color = '#94a3b8';
+
+                this.state.charts.genre = new Chart(document.getElementById('genreChart'), {
+                    type: 'radar',
+                    data: {
+                        labels: sortedGenres.map(g => g[0]),
+                        datasets: [{
+                            label: 'Titles',
+                            data: sortedGenres.map(g => g[1]),
+                            backgroundColor: 'rgba(139, 92, 246, 0.4)',
+                            borderColor: '#8b5cf6',
+                            pointBackgroundColor: '#0ea5e9'
+                        }]
+                    },
+                    options: { maintainAspectRatio: false, scales: { r: { grid: { color: 'rgba(255,255,255,0.1)' }, angleLines: { color: 'rgba(255,255,255,0.1)' } } }, plugins: { legend: { display: false } } }
+                });
+
+                this.state.charts.status = new Chart(document.getElementById('statusChart'), {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(statuses),
+                        datasets: [{
+                            data: Object.values(statuses),
+                            backgroundColor: ['#f59e0b', '#0ea5e9', '#10b981'],
+                            borderWidth: 0
+                        }]
+                    },
+                    options: { maintainAspectRatio: false, cutout: '70%', plugins: { legend: { position: 'bottom' } } }
+                });
+
+                // Text Metrics
+                const hours = (totalEps * 24) / 60; // Approx 24m per ep
+                document.getElementById('metricsText').innerHTML = `
+                    <div><div style="font-size:2rem; color:var(--primary); font-weight:bold;">${this.state.vault.length}</div>Total Saves</div>
+                    <div><div style="font-size:2rem; color:var(--accent); font-weight:bold;">${totalEps}</div>Episodes Tracked</div>
+                    <div><div style="font-size:2rem; color:var(--success); font-weight:bold;">${hours.toFixed(1)}</div>Estimated Hours</div>
+                `;
+            },
+
+            // --- 8. UTILITIES ---
+            playVideo(url) { // Feature 7
+                if(!url) return this.toast('Video preview unavailable', 'error');
+                const player = document.getElementById('scenePlayer');
+                player.src = url;
+                document.getElementById('videoModal').style.display = 'flex';
+                player.play().catch(e => console.log("Autoplay prevented"));
+            },
+
+            formatTime(seconds) {
+                if(!seconds) return "00:00";
+                return new Date(seconds * 1000).toISOString().substr(14, 5);
+            },
+
+            showProcessing(text) {
+                document.getElementById('processBar').style.display = 'block';
+                document.getElementById('processText').innerText = text;
+            },
+
+            hideProcessing() {
+                document.getElementById('processBar').style.display = 'none';
+            },
+
+            toast(msg, type='info') {
+                const t = document.createElement('div');
+                t.className = 'toast';
+                t.style.borderColor = type === 'error' ? 'var(--danger)' : type === 'success' ? 'var(--success)' : 'var(--primary)';
+                t.innerHTML = msg;
+                document.getElementById('toastContainer').appendChild(t);
+                setTimeout(() => { t.style.opacity = 0; setTimeout(() => t.remove(), 300); }, 3000);
+            }
+        };
+
+        // Boot Application
+        document.addEventListener('DOMContentLoaded', () => app.init());
+    </script>
+</body>
+</html>
